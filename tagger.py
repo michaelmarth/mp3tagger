@@ -60,10 +60,9 @@ def artist_to_groupings(artist):
 		return groupings
 
 def refine_genre(possible_refinements):
-	#print "looking for refinements for %s in %s" % (possible_refinements, refinement_genre_refinements)
 	for genre in possible_refinements:
-		if genre in refinement_genre_refinements:
-			return genre
+		if genre.strip() in refinement_genre_refinements:
+			return genre.strip()
 	return ""
 
 def select_audio(audio):
