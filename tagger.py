@@ -27,11 +27,16 @@ class Usage(Exception):
 genre_cache = {}
 groupings_cache = {}
 
+RUN_MODE_NORMAL = 0
+RUN_MODE_SIMULATION = 1
+RUN_MODE_ASK = 2
+
+
 def artist_to_genre(artist):
 	if genre_cache.has_key(artist):
 		return genre_cache[artist]
 	else:
-		tags = last_fm_network.get_artist(artist).get_top_tags()		
+		tags = last_fm_network.get_artist(artist).get_top_tags()
 		for tag in tags:
 			if all_genres.__contains__(tag[0].name.title()):
 				genre_cache[artist] = tag[0].name.title()
@@ -64,7 +69,17 @@ def walk_mp3s():
 					audio["TCON"] = TCON(encoding=3, text=genre)
 				if grouping != None:
 					audio["TIT1"] = TIT1(encoding=3, text=grouping)
-				audio.save()
+				
+				# what shall we do with the file?
+				if run_mode == RUN_MODE_NORMAL:
+					print "saving file %s" % (name)
+					audio.save()
+				if run_mode == RUN_MODE_SIMULATION:
+					print "not saving file %s (simulation mode)" % (name)
+				if run_mode == RUN_MODE_ASK:
+					yesno = raw_input("Save for file " + name + " (y/n) [y]")
+					if yesno == "y" or yesno == "":
+						audio.save()
 
 def setup_genres():
 	global all_genres
@@ -94,11 +109,13 @@ def setup_lastfm():
 	last_fm_network = pylast.get_lastfm_network(api_key = API_KEY, api_secret = API_SECRET)
 
 def main(argv=None):
+	global run_mode
+	run_mode = RUN_MODE_NORMAL
 	if argv is None:
 		argv = sys.argv
 	try:
 		try:
-			opts, args = getopt.getopt(argv[1:], "ho:vd:", ["help", "output="])
+			opts, args = getopt.getopt(argv[1:], "hvd:m:", ["help"])
 		except getopt.error, msg:
 			raise Usage(msg)
 		# setup last.fm network
@@ -111,8 +128,11 @@ def main(argv=None):
 				verbose = True
 			if option in ("-h", "--help"):
 				raise Usage(help_message)
-			if option in ("-o", "--output"):
-				output = value
+			if option in ("-m"):
+				if value == "simulation":
+					run_mode = RUN_MODE_SIMULATION
+				if value == "ask":
+					run_mode = RUN_MODE_ASK
 			if option in ("-d"):
 				try:
 					os.chdir(value)
