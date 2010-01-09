@@ -8,6 +8,7 @@ Copyright (c) 2010 marth.software.services. All rights reserved.
 """
 
 import sys
+import re
 import getopt
 import pylast
 import os.path
@@ -23,7 +24,6 @@ class Usage(Exception):
 	def __init__(self, msg):
 		self.msg = msg
 
-all_genres = TCON.GENRES
 genre_cache = {}
 groupings_cache = {}
 
@@ -66,6 +66,14 @@ def walk_mp3s():
 					audio["TIT1"] = TIT1(encoding=3, text=grouping)
 				audio.save()
 
+def setup_genres():
+	global all_genres
+	all_genres = TCON.GENRES
+	config = ConfigParser.ConfigParser()
+	config.read(os.path.expanduser('~/mp3tagger_genres.cfg'))
+	if config.has_option("generic", "genres"):
+		all_genres.extend(config.get("generic", "genres").split(","))
+
 def setup_lastfm():
 	global last_fm_network	
 	config = ConfigParser.ConfigParser()
@@ -95,6 +103,7 @@ def main(argv=None):
 			raise Usage(msg)
 		# setup last.fm network
 		setup_lastfm()
+		setup_genres()
 		
 		# option processing
 		for option, value in opts:
