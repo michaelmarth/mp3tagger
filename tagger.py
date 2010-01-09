@@ -27,12 +27,11 @@ all_genres = TCON.GENRES
 genre_cache = {}
 groupings_cache = {}
 
-
 def artist_to_genre(artist):
 	if genre_cache.has_key(artist):
 		return genre_cache[artist]
 	else:
-		tags = network.get_artist(artist).get_top_tags()		
+		tags = last_fm_network.get_artist(artist).get_top_tags()		
 		for tag in tags:
 			if all_genres.__contains__(tag[0].name.title()):
 				genre_cache[artist] = tag[0].name.title()
@@ -43,7 +42,7 @@ def artist_to_groupings(artist):
 	if groupings_cache.has_key(artist):
 		return groupings_cache[artist]
 	else:
-		tags = network.get_artist(artist).get_top_tags()
+		tags = last_fm_network.get_artist(artist).get_top_tags()
 		relevant_tags = []
 		for tag in tags:
 			if int(tag[1]) >= 50:
@@ -68,8 +67,9 @@ def walk_mp3s():
 				audio.save()
 
 def setup_lastfm():
+	global last_fm_network	
 	config = ConfigParser.ConfigParser()
-	config.read(os.path.expanduser('~/.mp3tagger.cfg'))
+	config.read(os.path.expanduser('.mp3tagger.cfg'))
 	if config.has_option("last.fm", "key") and config.has_option("last.fm", "secret"):
 		API_KEY = config.get("last.fm", "key")
 		API_SECRET = config.get("last.fm", "secret")
@@ -80,11 +80,10 @@ def setup_lastfm():
 		new_config.set("last.fm", "secret", raw_input("Enter your Last.fm secret:"))
 		API_KEY = new_config.get("last.fm", "key")
 		API_SECRET = new_config.get("last.fm", "secret")
-		print "NOTE: key and secret will be stored in ~/.mp3tagger.cfg"
+		print "NOTE: key and secret will be stored in .mp3tagger.cfg"
 		with open('.mp3tagger.cfg', 'w') as configfile:
 		    new_config.write(configfile)
-	global network
-	network = pylast.get_lastfm_network(api_key = API_KEY, api_secret = API_SECRET)
+	last_fm_network = pylast.get_lastfm_network(api_key = API_KEY, api_secret = API_SECRET)
 
 def main(argv=None):
 	if argv is None:
