@@ -69,7 +69,7 @@ def walk_mp3s():
 def setup_lastfm():
 	global last_fm_network	
 	config = ConfigParser.ConfigParser()
-	config.read(os.path.expanduser('.mp3tagger.cfg'))
+	config.read(os.path.expanduser('~/.mp3tagger.cfg'))
 	if config.has_option("last.fm", "key") and config.has_option("last.fm", "secret"):
 		API_KEY = config.get("last.fm", "key")
 		API_SECRET = config.get("last.fm", "secret")
@@ -80,8 +80,8 @@ def setup_lastfm():
 		new_config.set("last.fm", "secret", raw_input("Enter your Last.fm secret:"))
 		API_KEY = new_config.get("last.fm", "key")
 		API_SECRET = new_config.get("last.fm", "secret")
-		print "NOTE: key and secret will be stored in .mp3tagger.cfg"
-		with open('.mp3tagger.cfg', 'w') as configfile:
+		print "NOTE: key and secret will be stored in ~/.mp3tagger.cfg"
+		with open(os.path.expanduser('~/.mp3tagger.cfg'), 'w') as configfile:
 		    new_config.write(configfile)
 	last_fm_network = pylast.get_lastfm_network(api_key = API_KEY, api_secret = API_SECRET)
 
