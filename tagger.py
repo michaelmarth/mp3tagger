@@ -116,8 +116,9 @@ def setup_genres():
 	all_genres = TCON.GENRES
 	config = ConfigParser.ConfigParser()
 	config.read(os.path.expanduser('~/.mp3tagger_genres.cfg'))
-	if config.has_option("generic", "genres"):
-		all_genres.extend(config.get("generic", "genres").split(","))
+	for section in config.sections():
+		for option in config.options(section):
+			all_genres.extend(config.get(section, option).split(","))
 	if refinement_genre != "":
 		if config.has_section("refinements"):
 			if config.has_option("refinements", refinement_genre):
