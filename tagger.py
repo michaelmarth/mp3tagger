@@ -5,6 +5,8 @@ tag_groupings.py
 
 Created by Michael Marth on 2009-11-02.
 Copyright (c) 2010 marth.software.services. All rights reserved.
+
+( This is Tecuya's fork: http://github.com/Tecuya/mp3tagger/ )
 """
 
 import sys
@@ -14,10 +16,18 @@ import pylast
 import os.path
 import ConfigParser
 from mutagen.id3 import TCON, ID3, TIT1
+from mutagen.oggvorbis import OggVorbis
+from mutagen.flac import FLAC
 
 help_message = '''
 Adds ID3 tags to mp3 files for genre and groupings. Tag values are retrieved from Last.FM. Usage:
 -d mp3_directory
+-m [ask|simulation]  
+   Alter the tagging mode:
+   "ask" - Ask before writing
+   "simulation" - Simulate only, do not modify files
+-r [genre]   
+   Refine the named genre to the next-most-popular last.fm tag (mp3 only!)
 '''
 
 class Usage(Exception):
@@ -76,10 +86,13 @@ def select_audio(audio):
 	else:
 		return False
 
-def walk_mp3s():
+def walk_audio_files():
 	for root, dirs, files in os.walk('.'):
 		for name in files:
-			if name.endswith(".mp3"):
+                        
+                        audio_set = False
+
+			if name.lower().endswith(".mp3"):
 				audio = ID3(os.path.join(root, name))
 				if not select_audio(audio):
 					continue
@@ -98,6 +111,29 @@ def walk_mp3s():
 							print "refining genre for artist %s from %s to %s" % (audio["TPE1"].text[0], audio["TCON"].text[0], genre)
 							audio["TCON"] = TCON(encoding=3, text=genre)
 				
+                                audio_set = True
+
+
+                        elif name.lower().endswith(".ogg"):
+                                audio = OggVorbis(os.path.join(root, name))
+                                artist = audio['artist']
+                                genre = artist_to_genre(artist[0])
+                                if genre != None:
+                                        audio["genre"] = genre
+                                        audio_set = True
+
+
+                        elif name.lower().endswith(".flac"):
+                                audio = FLAC(os.path.join(root, name))
+                                artist = audio['artist']
+                                genre = artist_to_genre(artist[0])
+                                if genre != None:
+                                        audio["genre"] = genre
+                                        audio_set = True
+                                        
+                                        
+                        if audio_set:
+
 				# what shall we do with the file?
 				if run_mode == RUN_MODE_NORMAL:
 					#print "saving file %s" % (name)
@@ -109,6 +145,8 @@ def walk_mp3s():
 					yesno = raw_input("Save for file " + name + " (y/n) [y]")
 					if yesno == "y" or yesno == "":
 						audio.save()
+
+
 
 def setup_genres():
 	global all_genres
@@ -190,7 +228,7 @@ def main(argv=None):
 					print "error with directory " + value
 					print e
 		setup_genres()
-		walk_mp3s()		
+		walk_audio_files()		
 	
 	except Usage, err:
 		print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
