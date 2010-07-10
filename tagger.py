@@ -93,7 +93,12 @@ def walk_audio_files():
                         audio_set = False
 
 			if name.lower().endswith(".mp3"):
-				audio = ID3(os.path.join(root, name))
+                                try:
+                                        audio = ID3(os.path.join(root, name))
+                                except Exception, e:
+                                        print 'ID3 Error %s : %s' % (e, os.path.join(root, name))
+                                        continue
+
 				if not select_audio(audio):
 					continue
 				if tag_mode == TAG_MODE_NORMAL:
@@ -115,7 +120,12 @@ def walk_audio_files():
 
 
                         elif name.lower().endswith(".ogg"):
-                                audio = OggVorbis(os.path.join(root, name))
+                                try:
+                                        audio = OggVorbis(os.path.join(root, name))
+                                except Exception, e:
+                                        print 'Ogg Comment Error %s : %s' % (e, os.path.join(root, name))
+                                        continue
+
                                 artist = audio['artist']
                                 genre = artist_to_genre(artist[0])
                                 if genre != None:
@@ -124,7 +134,12 @@ def walk_audio_files():
 
 
                         elif name.lower().endswith(".flac"):
-                                audio = FLAC(os.path.join(root, name))
+                                try:
+                                        audio = FLAC(os.path.join(root, name))
+                                except Exception, e:
+                                        print 'Flac Comment Error %s : %s' % (e, os.path.join(root, name))
+                                        continue
+                                        
                                 artist = audio['artist']
                                 genre = artist_to_genre(artist[0])
                                 if genre != None:
