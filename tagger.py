@@ -48,7 +48,12 @@ def artist_to_genre(artist):
 	if genre_cache.has_key(artist):
 		return genre_cache[artist]
 	else:
-		tags = last_fm_network.get_artist(artist).get_top_tags()
+                try:
+                        tags = last_fm_network.get_artist(artist).get_top_tags()
+                except Exception, e:
+                        print "Artist failed last.fm lookup: %s" % e
+                        return None
+
 		for tag in tags:
 			if all_genres.__contains__(tag[0].name.title()):
 				genre_cache[artist] = tag[0].name.title()
@@ -59,7 +64,12 @@ def artist_to_groupings(artist):
 	if groupings_cache.has_key(artist):
 		return groupings_cache[artist]
 	else:
-		tags = last_fm_network.get_artist(artist).get_top_tags()
+                try:
+                        tags = last_fm_network.get_artist(artist).get_top_tags()
+                except Exception, e:
+                        print "Artist failed last.fm lookup: %s" % e
+                        return None 
+                       
 		relevant_tags = []
 		for tag in tags:
 			if int(tag[1]) >= 50:
@@ -101,7 +111,7 @@ def walk_audio_files():
 
 				if not select_audio(audio):
 					continue
-				if tag_mode == TAG_MODE_NORMAL:
+				if tag_mode == TAG_MODE_NORMAL and audio.has_key('TPE1'):
 					artist = audio["TPE1"]
 					genre = artist_to_genre(artist[0])
 					grouping = artist_to_groupings(artist[0])
