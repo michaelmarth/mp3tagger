@@ -25,21 +25,22 @@ from mutagen.flac import FLAC
 config_file = os.path.expanduser('~/.mp3tagger_genres.cfg')
 
 # lastfm tag cache
-cache_file = file(os.path.expanduser('~/.mp3tagger_cache.pickle'),'a+')
+cache_file = os.path.expanduser('~/.mp3tagger_cache.pickle')
+if os.path.isfile(cache_file):
+        try:
+                lastfm_tag_cache = cPickle.load( file(cache_file,'r') )
+                print 'Loaded cached tags for %d artists' % len(lastfm_tag_cache.keys())
+        except Exception, e:
+                print 'Failed loading tag cache file %s: %s' % (cache_file, e)
+                sys.exit()
+else:
+        lastfm_tag_cache = {}
 
 # set the last cache write date to now
 last_cache_write = int(time.time())
 
 # write cache every 5 minutes
 write_cache_every = 300
-
-if len(cache_file.read()):
-        cache_file.seek(0)
-        lastfm_tag_cache = cPickle.load( cache_file )
-        print 'Loaded cached tags for %d artists' % len(lastfm_tag_cache.keys())
-else:
-        lastfm_tag_cache = {}
-
 
 
 help_message = '''
@@ -64,9 +65,7 @@ RUN_MODE_ASK = 2
 TAG_MODE_NORMAL = 0
 TAG_MODE_REFINE = 1
 
-last_cache_write = 3
 def get_lastfm_tags(artist):
-        global last_cache_write
         if lastfm_tag_cache.has_key( artist.lower() ):
                 return lastfm_tag_cache[ artist.lower() ]
         else:
@@ -81,7 +80,12 @@ def get_lastfm_tags(artist):
                 tags = []
                 for i in range(0,len(lastfm_tags)):
                         if lastfm_tags[i].weight > 50:
-                                tags.append( str(lastfm_tags[i].item).title() )
+                                try:
+                                        tags.append( unicode(lastfm_tags[i].item).title() )
+                                except Exception, e:
+                                        print 'Could not parse genre %s : %s' % (lastfm_tags[i].item, e)
+                                        continue
+
                                 j += 1
                                 if j > 5:
                                         break
@@ -89,17 +93,25 @@ def get_lastfm_tags(artist):
                 # add to cache
                 lastfm_tag_cache[ artist.lower() ] = tags
                                 
-                # write cache to disk if it is deemed time
-                if (int(time.time()) - last_cache_write) > write_cache_every:
-                        print 'Writing cache as it has been more than %d seconds.' % write_cache_every
-                        cache_file.seek(0)
-                        cache_file.truncate()
-                        cPickle.dump( lastfm_tag_cache, cache_file )
-                        last_cache_write = int(time.time())
+                write_tag_cache()
 
                 return tags
 
 
+def write_tag_cache(force = False):
+        global last_cache_write
+
+        # write cache to disk if it is deemed time, or we were instructed to force write
+        if force or (int(time.time()) - last_cache_write) > write_cache_every:
+                print 'Writing tag cache to disk..' 
+
+                cache_file_obj = file(cache_file, 'w+')
+                cPickle.dump( lastfm_tag_cache, cache_file_obj )
+                cache_file_obj.close()
+
+                last_cache_write = int(time.time())
+
+        
 def artist_to_genre(artist):
         for tag in get_lastfm_tags(artist):
                 if all_genres.__contains__(tag):
@@ -306,7 +318,8 @@ def main(argv=None):
 					print e
 		setup_genres()
 		walk_audio_files()		
-	
+                write_tag_cache(True)
+
 	except Usage, err:
 		print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
 		print >> sys.stderr, "\t for help use --help"
