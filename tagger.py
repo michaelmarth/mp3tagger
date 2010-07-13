@@ -56,8 +56,8 @@ TAG_MODE_REFINE = 1
 
 
 def get_lastfm_tags(artist):        
-        if lastfm_tag_cache.has_key(artist):
-                return lastfm_tag_cache[ artist ]
+        if lastfm_tag_cache.has_key( artist.lower() ):
+                return lastfm_tag_cache[ artist.lower() ]
         else:
                 try:
                         print 'Last.fm tag lookup for artist: %s' % artist
@@ -67,7 +67,7 @@ def get_lastfm_tags(artist):
                         return []
 
                 # add to cache
-                lastfm_tag_cache[ artist ] = tags
+                lastfm_tag_cache[ artist.lower() ] = tags
                 
                 cache_file.seek(0)
                 cache_file.truncate()
