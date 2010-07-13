@@ -16,6 +16,8 @@ import pylast
 import os.path
 import ConfigParser
 import cPickle
+import time
+
 from mutagen.id3 import TCON, ID3, TIT1
 from mutagen.oggvorbis import OggVorbis
 from mutagen.flac import FLAC
@@ -23,7 +25,13 @@ from mutagen.flac import FLAC
 config_file = os.path.expanduser('~/.mp3tagger_genres.cfg')
 
 # lastfm tag cache
-cache_file = file(os.path.expanduser('~/.mp3tagger_cache.pickle'),'rw+')
+cache_file = file(os.path.expanduser('~/.mp3tagger_cache.pickle'),'a+')
+
+# set the last cache write date to now
+last_cache_write = int(time.time())
+
+# write cache every 5 minutes
+write_cache_every = 300
 
 if len(cache_file.read()):
         cache_file.seek(0)
@@ -31,6 +39,8 @@ if len(cache_file.read()):
         print 'Loaded cached tags for %d artists' % len(lastfm_tag_cache.keys())
 else:
         lastfm_tag_cache = {}
+
+
 
 help_message = '''
 Adds ID3 tags to mp3 files for genre and groupings. Tag values are retrieved from Last.FM. Usage:
@@ -54,39 +64,51 @@ RUN_MODE_ASK = 2
 TAG_MODE_NORMAL = 0
 TAG_MODE_REFINE = 1
 
-
-def get_lastfm_tags(artist):        
+last_cache_write = 3
+def get_lastfm_tags(artist):
+        global last_cache_write
         if lastfm_tag_cache.has_key( artist.lower() ):
                 return lastfm_tag_cache[ artist.lower() ]
         else:
                 try:
                         print 'Last.fm tag lookup for artist: %s' % artist
-                        tags = last_fm_network.get_artist(artist).get_top_tags()
+                        lastfm_tags = last_fm_network.get_artist(artist).get_top_tags()
                 except Exception, e:
                         print "ERROR: Artist '%s' failed last.fm lookup: %s" % ( artist, e )
                         return []
 
+                j=0
+                tags = []
+                for i in range(0,len(lastfm_tags)):
+                        if lastfm_tags[i].weight > 50:
+                                tags.append( str(lastfm_tags[i].item).title() )
+                                j += 1
+                                if j > 5:
+                                        break
+
                 # add to cache
                 lastfm_tag_cache[ artist.lower() ] = tags
-                
-                cache_file.seek(0)
-                cache_file.truncate()
+                                
+                # write cache to disk if it is deemed time
+                if (int(time.time()) - last_cache_write) > write_cache_every:
+                        print 'Writing cache as it has been more than %d seconds.' % write_cache_every
+                        cache_file.seek(0)
+                        cache_file.truncate()
+                        cPickle.dump( lastfm_tag_cache, cache_file )
+                        last_cache_write = int(time.time())
 
-                cPickle.dump( lastfm_tag_cache, cache_file )
-
-                return tags        
+                return tags
 
 
 def artist_to_genre(artist):
         for tag in get_lastfm_tags(artist):
-                if all_genres.__contains__(tag[0].name.title()):
-                        return tag[0].name.title()
+                if all_genres.__contains__(tag):
+                        return tag
 
 def artist_to_groupings(artist):
         relevant_tags = []
         for tag in get_lastfm_tags(artist):
-                if int(tag[1]) >= 50:
-                        relevant_tags.append(tag[0].name.title())
+                relevant_tags.append(tag)
         groupings = ", ".join(relevant_tags)
         return groupings
 
