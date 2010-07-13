@@ -74,7 +74,7 @@ def get_lastfm_tags(artist):
                         lastfm_tags = last_fm_network.get_artist(artist).get_top_tags()
                 except Exception, e:
                         print "ERROR: Artist '%s' failed last.fm lookup: %s" % ( artist, e )
-                        return []
+                        lastfm_tags = []
 
                 j=0
                 tags = []
