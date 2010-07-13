@@ -15,9 +15,22 @@ import getopt
 import pylast
 import os.path
 import ConfigParser
+import cPickle
 from mutagen.id3 import TCON, ID3, TIT1
 from mutagen.oggvorbis import OggVorbis
 from mutagen.flac import FLAC
+
+config_file = os.path.expanduser('~/.mp3tagger_genres.cfg')
+
+# lastfm tag cache
+cache_file = file(os.path.expanduser('~/.mp3tagger_cache.pickle'),'rw+')
+
+if len(cache_file.read()):
+        cache_file.seek(0)
+        lastfm_tag_cache = cPickle.load( cache_file )
+        print 'Loaded cached tags for %d artists' % len(lastfm_tag_cache.keys())
+else:
+        lastfm_tag_cache = {}
 
 help_message = '''
 Adds ID3 tags to mp3 files for genre and groupings. Tag values are retrieved from Last.FM. Usage:
@@ -34,9 +47,6 @@ class Usage(Exception):
 	def __init__(self, msg):
 		self.msg = msg
 
-genre_cache = {}
-groupings_cache = {}
-
 RUN_MODE_NORMAL = 0
 RUN_MODE_SIMULATION = 1
 RUN_MODE_ASK = 2
@@ -44,40 +54,41 @@ RUN_MODE_ASK = 2
 TAG_MODE_NORMAL = 0
 TAG_MODE_REFINE = 1
 
-def artist_to_genre(artist):
-	if genre_cache.has_key(artist):
-		return genre_cache[artist]
-	else:
+
+def get_lastfm_tags(artist):        
+        if lastfm_tag_cache.has_key(artist):
+                return lastfm_tag_cache[ artist ]
+        else:
                 try:
+                        print 'Last.fm tag lookup for artist: %s' % artist
                         tags = last_fm_network.get_artist(artist).get_top_tags()
                 except Exception, e:
-                        print "Artist failed last.fm lookup: %s" % e
-                        return None
+                        print "ERROR: Artist '%s' failed last.fm lookup: %s" % ( artist, e )
+                        return []
 
-		for tag in tags:
-			if all_genres.__contains__(tag[0].name.title()):
-				genre_cache[artist] = tag[0].name.title()
-				print "%20s %s" % (artist,tag[0].name.title())
-				return tag[0].name.title()
+                # add to cache
+                lastfm_tag_cache[ artist ] = tags
+                
+                cache_file.seek(0)
+                cache_file.truncate()
+
+                cPickle.dump( lastfm_tag_cache, cache_file )
+
+                return tags        
+
+
+def artist_to_genre(artist):
+        for tag in get_lastfm_tags(artist):
+                if all_genres.__contains__(tag[0].name.title()):
+                        return tag[0].name.title()
 
 def artist_to_groupings(artist):
-	if groupings_cache.has_key(artist):
-		return groupings_cache[artist]
-	else:
-                try:
-                        tags = last_fm_network.get_artist(artist).get_top_tags()
-                except Exception, e:
-                        print "Artist failed last.fm lookup: %s" % e
-                        return None 
-                       
-		relevant_tags = []
-		for tag in tags:
-			if int(tag[1]) >= 50:
-				relevant_tags.append(tag[0].name.title())
-		groupings = ", ".join(relevant_tags)
-		groupings_cache[artist] = groupings
-		print "%20s %s" % (artist,groupings)
-		return groupings
+        relevant_tags = []
+        for tag in get_lastfm_tags(artist):
+                if int(tag[1]) >= 50:
+                        relevant_tags.append(tag[0].name.title())
+        groupings = ", ".join(relevant_tags)
+        return groupings
 
 def refine_genre(possible_refinements):
 	for genre in possible_refinements:
@@ -97,6 +108,9 @@ def select_audio(audio):
 		return False
 
 def walk_audio_files():
+        
+        tag_count = 0
+
 	for root, dirs, files in os.walk('.'):
 		for name in files:
                         
@@ -106,7 +120,7 @@ def walk_audio_files():
                                 try:
                                         audio = ID3(os.path.join(root, name))
                                 except Exception, e:
-                                        print 'ID3 Error %s : %s' % (e, os.path.join(root, name))
+                                        print 'ERROR: ID3 Error %s : %s' % (e, os.path.join(root, name))
                                         continue
 
 				if not select_audio(audio):
@@ -117,23 +131,28 @@ def walk_audio_files():
 					grouping = artist_to_groupings(artist[0])
 					if genre != None:
 						audio["TCON"] = TCON(encoding=3, text=genre)
+                                                audio_set = True
 					if grouping != None:
 						audio["TIT1"] = TIT1(encoding=3, text=grouping)
+                                                audio_set = True
 				else:
 					if audio.has_key("TIT1"):
 						genre = refine_genre(audio["TIT1"].text[0].split(","))
 						if genre != "":
-							print "refining genre for artist %s from %s to %s" % (audio["TPE1"].text[0], audio["TCON"].text[0], genre)
+							print "Refining genre for artist %s from %s to %s" % (audio["TPE1"].text[0], audio["TCON"].text[0], genre)
 							audio["TCON"] = TCON(encoding=3, text=genre)
-				
-                                audio_set = True
+                                                        audio_set = True
 
 
                         elif name.lower().endswith(".ogg"):
                                 try:
                                         audio = OggVorbis(os.path.join(root, name))
                                 except Exception, e:
-                                        print 'Ogg Comment Error %s : %s' % (e, os.path.join(root, name))
+                                        print 'ERROR: Ogg Comment Error %s : %s' % (e, os.path.join(root, name))
+                                        continue
+
+                                if not audio.has_key('artist'):
+                                        print 'ERROR: Vorbis comment has no "artist" key in file %s' % os.path.join(root, name)
                                         continue
 
                                 artist = audio['artist']
@@ -147,30 +166,41 @@ def walk_audio_files():
                                 try:
                                         audio = FLAC(os.path.join(root, name))
                                 except Exception, e:
-                                        print 'Flac Comment Error %s : %s' % (e, os.path.join(root, name))
+                                        print 'ERROR: Flac Comment Error %s : %s' % (e, os.path.join(root, name))
                                         continue
-                                        
+                                
+                                if not audio.has_key('artist'):
+                                        print 'ERROR: Vorbis comment has no "artist" key in file %s' % os.path.join(root, name)
+                                        continue
+
+                                
                                 artist = audio['artist']
                                 genre = artist_to_genre(artist[0])
                                 if genre != None:
                                         audio["genre"] = genre
                                         audio_set = True
                                         
-                                        
+                                
                         if audio_set:
 
-				# what shall we do with the file?
-				if run_mode == RUN_MODE_NORMAL:
-					#print "saving file %s" % (name)
-					audio.save()
-				if run_mode == RUN_MODE_SIMULATION:
-					#print "not saving file %s (simulation mode)" % (name)
-					pass
-				if run_mode == RUN_MODE_ASK:
-					yesno = raw_input("Save for file " + name + " (y/n) [y]")
-					if yesno == "y" or yesno == "":
-						audio.save()
+                                try:
+                                        tag_count += 1
+                                        print "* %d %s %s" % (tag_count, genre, os.path.join(root, name))
 
+                                        # what shall we do with the file?
+                                        if run_mode == RUN_MODE_NORMAL:
+                                                #print "saving file %s" % (name)
+                                                audio.save()
+                                        if run_mode == RUN_MODE_SIMULATION:
+                                                #print "not saving file %s (simulation mode)" % (name)
+                                                pass
+                                        if run_mode == RUN_MODE_ASK:
+                                                yesno = raw_input("Save for file " + name + " (y/n) [y]")
+                                                if yesno == "y" or yesno == "":
+                                                        audio.save()
+                                except Exception, e:
+                                        print 'ERROR: Failed saving changes to file %s : %s' % (e, os.path.join(root, name))
+                                
 
 
 def setup_genres():
@@ -178,7 +208,7 @@ def setup_genres():
 	global refinement_genre_refinements	
 	all_genres = TCON.GENRES
 	config = ConfigParser.ConfigParser()
-	config.read(os.path.expanduser('~/.mp3tagger_genres.cfg'))
+	config.read(config_file)
 	for section in config.sections():
 		for option in config.options(section):
 			all_genres.extend(config.get(section, option).split(","))
